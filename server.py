@@ -1,28 +1,65 @@
 import socket
+import sys
 
-HOST = ''
-PORT = 8000
+from threading import Thread
 
-# Create new socket
-# AF_INET = the address families, SOCK_STREAM = socket types
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # Bind socket to address
-    s.bind((HOST, PORT))
-    # Enable server to accept connections
-    s.listen(5)
-    # Accept a connection
-    # Conn = new socket object usable to send and receive data on connection
-    # Addr = the address bound to the socket on the other end of the connection
-    conn, addr = s.accept()
-    with conn:
-        print('Connected by', addr)
+
+class Server(object):
+    def __init__(self, host='', port_num=8000):
+        self.host = host
+        self.port_num = port_num
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.bind((self.host, self.port_num))
+
+    def listen(self):
+        self.sock.listen(5)
         while True:
-            # Receive data from socket in bytes (max size is 1024 at a time)
-            data = conn.recv(1024)
-            if not data:
-                break
-            # Send data to socket
-            print(data.decode())
-            conn.sendall(data)
-        conn.close()
+            conn, addr = self.sock.accept()
+            conn.settimeout(60)
+            Thread(target=self.listen_to_client, args=(conn, addr))
+
+    def listen_to_client(self, conn):
+        while True:
+            try:
+                data = conn.recv(1024)
+                if data:
+                    resp = data
+                    print(resp.decode())
+                    conn.sendall(resp)
+                else:
+                    raise socket.error('Client disconnected')
+            except socket.error:
+                conn.close()
+                return False
+
+if __name__ == '__main__':
+    while True:
+        port = input('Port number please: ')
+        try:
+            port = int(port)
+            print('Port available')
+            break
+        except ValueError:
+            pass
+    Server('', port).listen()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
