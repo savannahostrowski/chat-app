@@ -1,11 +1,12 @@
 import socket
-import sys
-
-from threading import Thread
+import threading
 
 
-class Server(object):
-    def __init__(self, host='', port_num=8000):
+class Server:
+    clients = set()
+    clients_lock = threading.Lock()
+
+    def __init__(self, host, port_num):
         self.host = host
         self.port_num = port_num
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -16,33 +17,37 @@ class Server(object):
         self.sock.listen(5)
         while True:
             conn, addr = self.sock.accept()
-            conn.settimeout(60)
-            Thread(target=self.listen_to_client, args=(conn, addr))
+            conn.settimeout(120)
+            threading.Thread(target=self.listen_to_client, args=(conn, addr)).start()
 
-    def listen_to_client(self, conn):
-        while True:
-            try:
-                data = conn.recv(1024)
-                if data:
-                    resp = data
-                    print(resp.decode())
-                    conn.sendall(resp)
+    def listen_to_client(self, client, addr):
+        with self.clients_lock:
+            self.clients.add(client)
+        try:
+            while True:
+                data = client.recv(1024)
+                if not data:
+                    break
                 else:
-                    raise socket.error('Client disconnected')
-            except socket.error:
-                conn.close()
-                return False
+                    resp = data
+                    with self.clients_lock:
+                        for c in self.clients:
+                            c.sendall(resp)
+        finally:        
+            with self.clients_lock:
+                self.clients.remove(client)
+                client.close()
 
 if __name__ == '__main__':
     while True:
         port = input('Port number please: ')
         try:
             port = int(port)
-            print('Port available')
             break
         except ValueError:
             pass
-    Server('', port).listen()
+
+    Server('', int(port)).listen()
 
 
 
